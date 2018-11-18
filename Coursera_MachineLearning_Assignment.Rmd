@@ -1,0 +1,234 @@
+---
+title: "Coursera_MachineLearning_Assignment"
+author: "Mark Long"
+date: "November 17, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+```
+
+```{r import packages}
+
+library(ggplot2)
+library(caret)
+
+```
+
+
+# **Coursera - Machine Learning Assignment**
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+# **Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+# **General Strategy**
+
+To build the most accurate prediction for the provided testing data set, we will take the following steps:
+    1. Download the required data and perform some exploratory analyses to determine which variables to include in the final predictions (remove missing data, check for near zero variance, remove unrelated variables).
+    
+    2. Subset our training set into two (training.set & testing.set, p = 0.7) In order to perform cross-validation. 
+    
+    3. Examine several machine learning models (decision tree, random forest, etc) to the training.set data.
+    
+    4. Use our testing.set as a cross-validation set and predict the 'classe' variable given our model obtained from the training.set data.
+    
+    5. Extract accuracy information regarding the cross-validation predictions.
+    
+    6. Apply the most accurate model to the obtained testing data to predict 'classe' based on our predictor model.
+
+
+
+# **Analyses: Data Processing**
+
+* First, let's import the data
+
+```{r Import data}
+
+training <- download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+                          destfile = "C:/Users/Mark/Desktop/Coursera/Data Science specialization/Practical Machine Learning_082418/pml_training.csv")
+
+
+testing <- download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+                          destfile = "C:/Users/Mark/Desktop/Coursera/Data Science specialization/Practical Machine Learning_082418/pml_testing.csv")
+
+```
+
+
+```{r Load data}
+
+training <- read.csv("C:/Users/Mark/Desktop/Coursera/Data Science specialization/Practical Machine Learning_082418/pml_training.csv", row.names = 1)
+
+testing <- read.csv("C:/Users/Mark/Desktop/Coursera/Data Science specialization/Practical Machine Learning_082418/pml_testing.csv", row.names = 1)
+
+```
+
+* Let's check some basic characteristics of our data
+
+```{r data summary}
+
+# Check the length of training/testing sets
+dim(training); dim(testing)
+
+# check distribution of the variable we want to predict
+table(training$classe)
+
+```
+
+* First let's remove variables that lack sufficient data (has NA or empty values)
+
+```{r remove variables with insufficient data}
+
+training <- training[!sapply(training, function (x) any(is.na(x) | x == ""))]
+testing <- testing[, colnames(testing) %in% colnames(training)]
+dim(training); dim(testing)
+
+```
+
+* So, our list of potential predictors has been reduced from 158 to 58
+
+* We can also check for variables that have near zero variance and remove them:
+
+```{r Zero Variance Predictors}
+
+myDataNZV <- nearZeroVar(training, saveMetrics=TRUE)
+myDataNZV
+
+# Remove near zero variance variables from training/testing sets
+training <- training[, colnames(training) %in% rownames(myDataNZV)[myDataNZV$nzv == FALSE]]
+testing <- testing[, colnames(testing) %in% rownames(myDataNZV)[myDataNZV$nzv == FALSE]]
+```
+
+* Let's also remove individual name and date variables (and any other variables that are not muscle measurements) so that they do not interfere with model
+
+```{r remove name/date variables}
+
+training <- training[, -c(1:5)]
+testing <- testing[, -c(1:5)]
+
+```
+
+
+* Let's visualize our predictors to try to get an idea of which might be useful in the model
+
+```{r visualize predictors}
+
+featurePlot(x=training[, c(10:15)],
+		y=training$classe,
+		plot ="pairs")
+
+```
+
+* We will do some preprocessing of predictors prior to modeling
+
+```{r Preprocessing}
+
+    
+
+```
+
+* Let's split our training set into training/testing subsets
+```{r create partitions}
+#
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training.set <- training[inTrain, ] 
+testing.set <- training[-inTrain, ]
+
+# Check sizes of each set
+dim(training.set); dim(testing.set)
+
+```
+
+
+
+
+# **Analyses: Application of ML Models**
+
+* Next, let's build some models, starting by building a decision tree:
+
+
+```{r Predict: Decision Tree}
+
+# Train decision tree on training.set
+modFit.DT <- train(classe ~ ., method = "rpart", data=training.set)
+print(modFit.DT$finalModel)
+
+# Plot decision tree (as dendrogram)
+#plot(modFit.DT$finalModel, uniform=TRUE, main="Classification Tree")
+#text(modFit.DT$finalModel, use.n=TRUE, all=TRUE, cex=0.8)
+# Or, a better version of plot using rattle
+library(rattle)
+fancyRpartPlot(modFit.DT$finalModel)
+
+# Predict 'classe' variable in cross-validation set
+pred.DT <- predict(modFit.DT, newdata=testing.set)
+
+# Check predictions with confusion matrix output
+confusionMatrix(pred.DT, testing.set$classe)
+
+```
+
+* Accuracy is not great. Seems to have a hard time predicting the 'D' class.
+
+* Next, let's apply a random forest model:
+
+```{r Predict: Random Forest}
+
+library(randomForest)
+
+# Train random forest on training.set
+modFit.RF <- randomForest(classe ~. , data=training.set)
+print(modFit.RF)
+
+# Get a single tree
+#getTree(modFit.RF, k=2) 
+
+# We can now predict 'classe' values in testing.set
+pred.RF <- predict(modFit.RF, newdata=testing.set)
+
+# Check predictions with confusion matrix output
+confusionMatrix(pred.RF, testing.set$classe)
+
+#qplot(pred.DT, pred.RF, colour=classe, data=testing.set)
+```
+
+* So, accuracy of random forest is much better (0.9947)
+
+```{r additional models, echo=FALSE}
+
+# Build two different models on same training data (i.e. linear model, random forest)
+#mod1 <- train(classe ~ ., method = "glm", data=training.set)
+#mod2 <- train(classe ~ ., method = "rf", data=training.set, trControl=trainControl(method="cv"),number=3)
+
+```
+
+* Last, let's try to fit a model on combined predictors
+
+```{r combine predictors, message=FALSE}
+
+# Fit a model that combined predictors
+predDF <- data.frame(pred.DT, pred.RF, classe=testing.set$classe)
+combModFit <- train(classe ~ ., method="gam", data=predDF)
+combPred <- predict(combModFit, predDF)
+
+# Check predictions with confusion matrix output
+confusionMatrix(combPred, testing.set$classe)
+
+
+```
+
+
+* This is actually not as good as the random forest alone, so let's stick with that model to predict the testing set
+
+
+```{r final test prediction}
+
+predFinal <- predict(modFit.RF, testing)
+predFinal
+
+```
+
